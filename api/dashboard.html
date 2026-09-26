@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpsHeal: Autonomous SRE Incident War Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --bg-card: rgba(18, 24, 38, 0.7);
+      --bg-card-hover: rgba(26, 35, 54, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(99, 102, 241, 0.3);
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.25);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --danger: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.3);
+      --warning: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-subtle: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 32px;
+      width: 100%;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1, #3b82f6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title span {
+      color: var(--primary);
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--success);
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.outage {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: var(--danger);
+      animation: pulseAlert 2s infinite;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: currentColor;
+    }
+
+    @keyframes pulseAlert {
+      0%, 100% { box-shadow: 0 0 0 0 var(--danger-glow); }
+      50% { box-shadow: 0 0 20px 4px var(--danger-glow); }
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-highlight);
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      opacity: 0.3;
+    }
+
+    .metric-card.danger::before {
+      background: linear-gradient(90deg, transparent, var(--danger), transparent);
+      opacity: 0.8;
+    }
+
+    .metric-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-subtle);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-deck {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 24px 28px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .deck-info h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .deck-info p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .deck-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 11px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      border: none;
+      font-family: inherit;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      box-shadow: 0 4px 16px var(--success-glow);
+    }
+
+    .btn-success:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #c7d2fe;
+    }
+
+    .btn-primary:hover {
+      background: rgba(99, 102, 241, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+
+    /* Live API Inspector Panel */
+    .inspector-panel {
+      background: rgba(14, 19, 32, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .inspector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .inspector-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-code-badge {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .status-code-500 {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+    }
+
+    .status-code-200 {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: #6ee7b7;
+    }
+
+    .inspector-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .inspector-box h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .inspector-box pre {
+      background: #070a11;
+      padding: 14px;
+      border-radius: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 24px;
+    }
+
+    .section-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .agent-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .agent-step.active {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.06);
+    }
+
+    .agent-step.completed {
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.04);
+    }
+
+    .step-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .step-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+    }
+
+    .step-badge.done {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .inspect-link {
+      color: #818cf8;
+      font-size: 11px;
+      text-decoration: underline;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .inspect-link:hover {
+      color: #a5b4fc;
+    }
+
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .badge-v1 {
+      background: rgba(148, 163, 184, 0.15);
+      color: #cbd5e1;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-v2 {
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-settled {
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    .badge-poisoned {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-card {
+      background: #111827;
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      max-width: 900px;
+      width: 92%;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 32px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    pre {
+      background: #090d16;
+      padding: 20px;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.5;
+      border: 1px solid var(--border-subtle);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="logo-badge">OH</div>
+        <div>
+          <div class="brand-title">OpsHeal <span>Core</span> <span style="font-size: 11px; font-weight: 700; background: linear-gradient(135deg, #1d4ed8, #4338ca); color: #fff; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.15); margin-left: 6px;">IBM Bob 2.0 Swarm</span></div>
+          <div class="brand-subtitle">Autonomous Incident Triage & Zero-Downtime Hotfix Swarm</div>
+        </div>
+      </div>
+      <div id="systemStatusBadge" class="status-badge">
+        <div class="status-dot"></div>
+        <span id="systemStatusText">OPERATIONAL (HEALTHY)</span>
+      </div>
+    </header>
+
+    <!-- Metrics Grid -->
+    <div class="dashboard-grid">
+      <div id="cardRevenueRisk" class="metric-card">
+        <div class="metric-label">Revenue at Risk</div>
+        <div id="valRevenueRisk" class="metric-value">$0.00</div>
+        <div id="subRevenueRisk" class="metric-sub">Protected by OpsHeal</div>
+      </div>
+
+      <div id="cardDLQ" class="metric-card">
+        <div class="metric-label">Dead-Letter Queue (DLQ)</div>
+        <div id="valDLQCount" class="metric-value">0</div>
+        <div id="subDLQCount" class="metric-sub">Trapped In-Flight Transactions</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">Total Settled Ledger</div>
+        <div id="valSettledVolume" class="metric-value">$0.00</div>
+        <div id="subSettledVolume" class="metric-sub">0 transactions reconciled</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">Autonomous MTTR</div>
+        <div class="metric-value">48s</div>
+        <div class="metric-sub">vs. 3.5 hrs manual war room</div>
+      </div>
+    </div>
+
+    <!-- Executive Action Control Deck -->
+    <div class="control-deck">
+      <div class="deck-info">
+        <h3>Autonomous Incident Control Center</h3>
+        <p>Demonstrate the live HTTP crash, document understanding, and automated recovery.</p>
+      </div>
+      <div class="deck-actions">
+        <select id="outageScenarioSelect" style="background: rgba(26, 35, 54, 0.95); border: 1px solid rgba(99, 102, 241, 0.5); color: #f8fafc; border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer; outline: none;">
+          <option value="mixed">🌐 Outage: Multi-Gateway Chaos (Stripe Cents + GlobalPay Nested + Dirty Strings)</option>
+          <option value="stripe">💵 Outage: Stripe Minor Units (amount_cents & client_id)</option>
+          <option value="v2">📦 Outage: GlobalPay v2 RFC (account_ref & nested detail)</option>
+        </select>
+        <button id="btnTriggerOutage" class="btn btn-danger" onclick="triggerOutage()">
+          🚨 Trigger Sev-1 Outage
+        </button>
+        <button class="btn btn-primary" onclick="sendLiveProbe()">
+          📡 Send Live Webhook Probe
+        </button>
+        <button class="btn btn-secondary" style="border: 1px solid rgba(168, 85, 247, 0.4); color: #d8b4fe; background: rgba(168, 85, 247, 0.12);" onclick="openChaosModal()">
+          🧪 Chaos Webhook Injector
+        </button>
+        <button id="btnRemediate" class="btn btn-success" onclick="remediateIncident()">
+          ⚡ Run OpsHeal Autonomous Healer
+        </button>
+        <button class="btn btn-secondary" onclick="viewReport('pr')">
+          📄 View CTO PR
+        </button>
+        <button class="btn btn-secondary" style="border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd; background: rgba(59, 130, 246, 0.12);" onclick="viewReport('postmortem')">
+          📑 View Post-Mortem
+        </button>
+        <button class="btn btn-secondary" onclick="resetDemo()">
+          🔄 Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Live API Inspector Console -->
+    <div id="inspectorPanel" class="inspector-panel">
+      <div class="inspector-header">
+        <div class="inspector-title">
+          <span>📡 Live Webhook API Execution Console</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted);">POST /v1/webhooks/payment</span>
+        </div>
+        <div id="inspectorBadge" class="status-code-badge status-code-500">HTTP 500 CRASH</div>
+      </div>
+      <div class="inspector-grid">
+        <div class="inspector-box">
+          <h4 id="inspectorRequestTitle">Incoming Modern Payload</h4>
+          <pre id="inspectorRequestJson">// Request payload will display here</pre>
+        </div>
+        <div class="inspector-box">
+          <h4>Live Microservice Response</h4>
+          <pre id="inspectorResponseJson">// Response body will display here</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="content-grid">
+      <!-- Left: Agent Swarm Timeline -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">🤖 IBM Bob 2.0 Multi-Agent Swarm Activity</div>
+          <span id="swarmStatus" class="step-badge">STANDBY</span>
+        </div>
+
+        <div class="timeline">
+          <div id="stepTriage" class="agent-step">
+            <div class="step-icon">🔍</div>
+            <div class="step-content">
+              <div class="step-title">
+                Bob-Triage: Document Understanding & RCA
+                <span class="inspect-link" onclick="viewArtifact('spec')">[Inspect RFC Spec]</span>
+              </div>
+              <div id="descTriage" class="step-desc">Awaiting incident telemetry. Ready to ingest incoming payload and vendor specifications.</div>
+            </div>
+            <span id="badgeTriage" class="step-badge">WAITING</span>
+          </div>
+
+          <div id="stepDB" class="agent-step">
+            <div class="step-icon">🛠️</div>
+            <div class="step-content">
+              <div class="step-title">
+                Bob-DBA: Zero-Downtime Migration
+                <span class="inspect-link" onclick="viewArtifact('schema')">[Inspect DB Schema]</span>
+              </div>
+              <div id="descDB" class="step-desc">Monitoring database schema integrity. Zero active locks.</div>
+            </div>
+            <span id="badgeDB" class="step-badge">WAITING</span>
+          </div>
+
+          <div id="stepAdapter" class="agent-step">
+            <div class="step-icon">🔄</div>
+            <div class="step-content">
+              <div class="step-title">
+                Bob-Adapter: Polymorphic Contract Engine
+                <span class="inspect-link" onclick="viewArtifact('adapter')">[Inspect Code]</span>
+              </div>
+              <div id="descAdapter" class="step-desc">Base HTTP ingress active. Ready to synthesize contract adaptations.</div>
+            </div>
+            <span id="badgeAdapter" class="step-badge">WAITING</span>
+          </div>
+
+          <div id="stepCanary" class="agent-step">
+            <div class="step-icon">🐤</div>
+            <div class="step-content">
+              <div class="step-title">
+                Bob-Canary: Safety Gate & Anti-Double-Spend
+                <span class="inspect-link" onclick="viewReport('canary')">[View Report]</span>
+              </div>
+              <div id="descCanary" class="step-desc">Canary safety gate on standby. Ready to dispatch shadow validation probes.</div>
+            </div>
+            <span id="badgeCanary" class="step-badge">WAITING</span>
+          </div>
+
+          <div id="stepDrainer" class="agent-step">
+            <div class="step-icon">🚀</div>
+            <div class="step-content">
+              <div class="step-title">Bob-Drainer: Dead-Letter Queue Recovery</div>
+              <div id="descDrainer" class="step-desc">Dead-Letter Queue monitor active. Ready to recover trapped in-flight transactions.</div>
+            </div>
+            <span id="badgeDrainer" class="step-badge">WAITING</span>
+          </div>
+
+          <div id="stepRelease" class="agent-step">
+            <div class="step-icon">📝</div>
+            <div class="step-content">
+              <div class="step-title">
+                Bob-Release: Hotfix PR & Audit Sign-Off
+                <span class="inspect-link" onclick="viewReport('pr')">[View PR]</span>
+              </div>
+              <div id="descRelease" class="step-desc">Audit & release pipeline ready to compile hotfix Pull Request.</div>
+            </div>
+            <span id="badgeRelease" class="step-badge">WAITING</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Live Transaction & DLQ Stream -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">📊 Live Transaction & DLQ Feed</div>
+          <span style="font-size: 12px; color: var(--text-muted);">Real-Time WebSocket/Polling</span>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>TX ID</th>
+                <th>Customer / Account</th>
+                <th>Amount</th>
+                <th>Schema</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="transactionTableBody">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No transactions recorded. Click "Trigger Sev-1 Outage" to simulate incoming traffic.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document & Code Modal -->
+  <div id="reportModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modalTitle">Document View</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <pre id="modalContent"></pre>
+    </div>
+  </div>
+
+  <!-- Chaos Webhook Injector Modal -->
+  <div id="chaosModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 960px;">
+      <div class="modal-header">
+        <div>
+          <h2 style="display: flex; align-items: center; gap: 8px; font-size: 20px;">
+            <span>🧪 Chaos Webhook Injector & Polymorphic Drift Tester</span>
+          </h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+            Test arbitrary vendor contract mutations against the live microservice. OpsHeal normalizes unit scales, coercions, renames, and nested hierarchies in real time.
+          </p>
+        </div>
+        <button class="modal-close" onclick="closeChaosModal()">&times;</button>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); display: block; margin-bottom: 8px;">
+          Select Drift Preset or Edit JSON:
+        </label>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadChaosPreset('stripe_cents')">
+            💵 1. Stripe Cents (amount_cents: 580000)
+          </button>
+          <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadChaosPreset('dirty_currency')">
+            💲 2. Stringified Float ("$12,450.75")
+          </button>
+          <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadChaosPreset('nested_adyen')">
+            📦 3. Nested Object (payment_detail)
+          </button>
+          <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadChaosPreset('field_rename')">
+            🏷️ 4. Field Rename (client_id + status)
+          </button>
+          <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadChaosPreset('legacy_v1')">
+            🏛️ 5. Legacy v1 Backward Compat
+          </button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Incoming Arbitrary Payload (JSON):</label>
+            <span id="chaosPresetBadge" style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(99, 102, 241, 0.2); color: #a5b4fc;">Custom</span>
+          </div>
+          <textarea id="chaosPayloadJson" rows="12" style="width: 100%; background: #0a0d14; border: 1px solid var(--border-subtle); border-radius: 8px; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 12px; resize: vertical; outline: none;"></textarea>
+          <div style="margin-top: 10px; display: flex; gap: 10px;">
+            <button class="btn btn-primary" style="flex: 1;" onclick="dispatchChaosWebhook()">
+              🚀 Dispatch Live Probe to POST /v1/demo/send-custom-webhook
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Microservice Execution Response:</label>
+            <span id="chaosStatusBadge" class="status-code-badge" style="font-size: 11px; padding: 3px 8px;">AWAITING DISPATCH</span>
+          </div>
+          <div id="chaosTransformationsContainer" style="display: none; margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3);">
+            <div style="font-size: 11px; font-weight: 700; color: #34d399; margin-bottom: 4px;">⚡ TRANSFORMATIONS AUTONOMOUSLY APPLIED:</div>
+            <ul id="chaosTransformationsList" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #a7f3d0; margin-left: 18px;"></ul>
+          </div>
+          <pre id="chaosResponseJson" style="height: 230px; overflow: auto; background: #0a0d14; border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 12px;">// Response will appear here after dispatch</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function fetchTelemetry() {
+      try {
+        const res = await fetch('/v1/telemetry');
+        const data = await res.json();
+        updateDashboard(data);
+      } catch (err) {
+        console.error('Failed to fetch telemetry:', err);
+      }
+    }
+
+    function updateDashboard(data) {
+      const statusBadge = document.getElementById('systemStatusBadge');
+      const statusText = document.getElementById('systemStatusText');
+      const cardRisk = document.getElementById('cardRevenueRisk');
+      const cardDLQ = document.getElementById('cardDLQ');
+      
+      const dlqCount = data.dlq.dlq_count;
+      const trappedVolume = data.dlq.trapped_volume_usd;
+      const settledCount = data.stats.settled_count;
+      const settledVolume = data.stats.settled_volume;
+
+      document.getElementById('valRevenueRisk').innerText = `$${trappedVolume.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      document.getElementById('valDLQCount').innerText = dlqCount;
+      document.getElementById('valSettledVolume').innerText = `$${settledVolume.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      
+      if (settledCount > 0) {
+        document.getElementById('subSettledVolume').innerText = `${settledCount} transactions reconciled (${dlqCount === 0 ? '100% recovered from DLQ' : 'in ledger'})`;
+      } else {
+        document.getElementById('subSettledVolume').innerText = `0 transactions reconciled`;
+      }
+
+      if (dlqCount > 0) {
+        statusBadge.className = 'status-badge outage';
+        statusText.innerText = '🚨 CRITICAL SEV-1 OUTAGE (Contract Drift Active)';
+        cardRisk.className = 'metric-card danger';
+        cardDLQ.className = 'metric-card danger';
+        document.getElementById('subRevenueRisk').innerText = `🚨 ${dlqCount} transactions blocked at gateway`;
+      } else {
+        statusBadge.className = 'status-badge';
+        statusText.innerText = '🟢 OPERATIONAL (Zero Crashes)';
+        cardRisk.className = 'metric-card';
+        cardDLQ.className = 'metric-card';
+        if (settledCount > 0) {
+          document.getElementById('subRevenueRisk').innerText = `✅ 100% Recovered ($${settledVolume.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} saved)`;
+        } else {
+          document.getElementById('subRevenueRisk').innerText = 'Protected by OpsHeal';
+        }
+      }
+
+      // Populate table
+      const tbody = document.getElementById('transactionTableBody');
+      const txs = data.recent_transactions || [];
+      const dlqRecords = data.dlq.records || [];
+
+      let rows = '';
+
+      // Show poisoned records first
+      dlqRecords.slice(0, 15).forEach(r => {
+        const p = r.payload || {};
+        let cust = p.customer_id || p.account_ref || p.client_id || p.payer_id || 'UNKNOWN';
+        let amtDisplay = "$0.00";
+        let badgeType = '<span class="badge-v2">v2 Drift</span>';
+
+        if (p.amount_cents !== undefined) {
+          const dollars = p.amount_cents / 100.0;
+          amtDisplay = `$${dollars.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${(p.amount_cents/1000).toFixed(0)}k ¢)`;
+          badgeType = '<span class="badge-v2" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">Stripe Cents</span>';
+        } else if (typeof p.amount === 'string' && (p.amount.includes('$') || p.amount.includes(','))) {
+          amtDisplay = p.amount;
+          badgeType = '<span class="badge-v2" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">Dirty String</span>';
+        } else if (p.payment_detail && p.payment_detail.settlement_amount !== undefined) {
+          amtDisplay = `$${Number(p.payment_detail.settlement_amount).toFixed(2)}`;
+          badgeType = '<span class="badge-v2" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4);">Nested v2</span>';
+        } else if (p.amount !== undefined) {
+          amtDisplay = `$${Number(p.amount).toFixed(2)}`;
+          badgeType = '<span class="badge-v2">Field Rename</span>';
+        }
+
+        rows += `
+          <tr>
+            <td style="color: #fca5a5; font-weight: 600;">${r.transaction_id}</td>
+            <td style="color: #e2e8f0;">${cust}</td>
+            <td style="font-weight: 600; color: #f8fafc;">${amtDisplay}</td>
+            <td>${badgeType}</td>
+            <td><span class="badge-poisoned">⚠️ POISONED (DLQ)</span></td>
+          </tr>
+        `;
+      });
+
+      // Show settled transactions
+      txs.slice(0, 15).forEach(t => {
+        const isV2 = !!t.idempotency_token;
+        rows += `
+          <tr>
+            <td>${t.transaction_id}</td>
+            <td>${t.customer_id}</td>
+            <td>$${t.amount.toFixed(2)}</td>
+            <td><span class="${isV2 ? 'badge-v2' : 'badge-v1'}">${isV2 ? 'v2 Unified' : 'v1 Legacy'}</span></td>
+            <td><span class="badge-settled">✅ SETTLED</span></td>
+          </tr>
+        `;
+      });
+
+      if (rows) {
+        tbody.innerHTML = rows;
+      }
+    }
+
+    async function sendLiveProbe(scenario) {
+      const panel = document.getElementById('inspectorPanel');
+      const badge = document.getElementById('inspectorBadge');
+      const reqPre = document.getElementById('inspectorRequestJson');
+      const resPre = document.getElementById('inspectorResponseJson');
+      const reqTitle = document.getElementById('inspectorRequestTitle');
+
+      const scen = scenario || (document.getElementById('outageScenarioSelect') ? document.getElementById('outageScenarioSelect').value : 'mixed');
+
+      panel.style.display = 'block';
+      badge.innerText = 'DISPATCHING PROBE...';
+      badge.className = 'status-code-badge';
+
+      try {
+        const res = await fetch(`/v1/demo/send-test-v2?scenario=${scen}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (reqTitle && data.probe_title) {
+          reqTitle.innerText = `Incoming Probe: ${data.probe_title}`;
+        }
+        reqPre.innerText = JSON.stringify(data.request_payload, null, 2);
+        
+        if (data.status_code === 500) {
+          badge.className = 'status-code-badge status-code-500';
+          badge.innerText = `HTTP ${data.status_code} ${data.status_text}`;
+          resPre.innerText = JSON.stringify(data.response_body, null, 2) + "\n\n[Captured Server Traceback]:\n" + data.error_trace;
+        } else {
+          badge.className = 'status-code-badge status-code-200';
+          badge.innerText = `HTTP ${data.status_code} ${data.status_text}`;
+          resPre.innerText = JSON.stringify(data.response_body, null, 2);
+        }
+
+        await fetchTelemetry();
+      } catch (err) {
+        alert('Error: ' + err);
+      }
+    }
+
+    async function triggerOutage() {
+      const btn = document.getElementById('btnTriggerOutage');
+      const scenSelect = document.getElementById('outageScenarioSelect');
+      const scenario = scenSelect ? scenSelect.value : 'mixed';
+      btn.innerText = 'Triggering Outage...';
+      btn.disabled = true;
+
+      try {
+        await fetch(`/v1/demo/trigger-outage?scenario=${scenario}`, { method: 'POST' });
+        await fetchTelemetry();
+        document.getElementById('swarmStatus').innerText = 'SEV-1 DETECTED';
+        document.getElementById('swarmStatus').className = 'step-badge';
+        document.getElementById('swarmStatus').style.background = 'rgba(239, 68, 68, 0.2)';
+        document.getElementById('swarmStatus').style.color = '#fca5a5';
+        
+        document.getElementById('descTriage').innerText = '🚨 Ingestion crash intercepted. Trapping poisoned transactions into DLQ. Awaiting autonomous triage dispatch.';
+        document.getElementById('descDB').innerText = 'Detected schema mismatch on incoming traffic.';
+        document.getElementById('descAdapter').innerText = 'Unpatched endpoint rejecting modified payloads.';
+
+        // Immediately fire live probe matching the chosen scenario
+        await sendLiveProbe(scenario);
+      } catch (err) {
+        alert('Error: ' + err);
+      } finally {
+        btn.innerText = '🚨 Trigger Sev-1 Outage';
+        btn.disabled = false;
+      }
+    }
+
+    async function remediateIncident() {
+      const btn = document.getElementById('btnRemediate');
+      btn.innerText = 'Agent Swarm Executing...';
+      btn.disabled = true;
+
+      const stepData = [
+        { id: 'Triage', active: 'Ingesting DLQ error payload and analyzing vendor specification...', done: 'Dynamically parsed contract drift and pinpointed renamed/nested fields.' },
+        { id: 'DB', active: 'Computing non-blocking schema delta and executing SQLite WAL ALTER TABLE...', done: 'Executed SQLite WAL schema update adding missing attributes without table locks.' },
+        { id: 'Adapter', active: 'Synthesizing polymorphic contract adapter in memory...', done: 'Deployed dynamic contract adapter bridging legacy v1 and vendor v2 schemas.' },
+        { id: 'Canary', active: 'Executing synthetic probes in shadow sandbox to verify regression safety...', done: 'Verified 0.0% error rate and proved idempotent deduplication prevents double billing.' },
+        { id: 'Drainer', active: 'Draining trapped in-flight transactions from DLQ into ledger...', done: 'Safely drained and replayed all 15 poisoned transactions ($69,000.00 recovered).' },
+        { id: 'Release', active: 'Compiling audit trail, diff patches, and CTO pull request...', done: 'Generated hotfix branch and CTO pull request document for audit sign-off.' }
+      ];
+
+      for (const s of stepData) {
+        document.getElementById(`step${s.id}`).className = 'agent-step active';
+        document.getElementById(`badge${s.id}`).innerText = 'IN PROGRESS';
+        document.getElementById(`badge${s.id}`).className = 'step-badge';
+        document.getElementById(`desc${s.id}`).innerText = s.active;
+        await new Promise(r => setTimeout(r, 350));
+      }
+
+      try {
+        await fetch('/v1/demo/remediate', { method: 'POST' });
+        await fetchTelemetry();
+
+        for (const s of stepData) {
+          document.getElementById(`step${s.id}`).className = 'agent-step completed';
+          document.getElementById(`badge${s.id}`).innerText = 'DONE';
+          document.getElementById(`badge${s.id}`).className = 'step-badge done';
+          document.getElementById(`desc${s.id}`).innerText = s.done;
+        }
+
+        document.getElementById('swarmStatus').innerText = 'HOTFIX DEPLOYED (100% OK)';
+        document.getElementById('swarmStatus').className = 'step-badge done';
+
+        // Immediately fire live probe to demonstrate the 200 response after fix!
+        await sendLiveProbe();
+      } catch (err) {
+        alert('Error during remediation: ' + err);
+      } finally {
+        btn.innerText = '⚡ Run OpsHeal Autonomous Healer';
+        btn.disabled = false;
+      }
+    }
+
+    async function resetDemo() {
+      await fetch('/v1/demo/reset', { method: 'POST' });
+      await fetchTelemetry();
+      const steps = ['Triage', 'DB', 'Adapter', 'Canary', 'Drainer', 'Release'];
+      steps.forEach(s => {
+        document.getElementById(`step${s}`).className = 'agent-step';
+        document.getElementById(`badge${s}`).innerText = 'WAITING';
+        document.getElementById(`badge${s}`).className = 'step-badge';
+      });
+
+      const defaultDesc = {
+        Triage: 'Awaiting incident telemetry. Ready to ingest incoming payload and vendor specifications.',
+        DB: 'Monitoring database schema integrity. Zero active locks.',
+        Adapter: 'Base HTTP ingress active. Ready to synthesize contract adaptations.',
+        Canary: 'Canary safety gate on standby. Ready to dispatch shadow validation probes.',
+        Drainer: 'Dead-Letter Queue monitor active. Ready to recover trapped in-flight transactions.',
+        Release: 'Audit & release pipeline ready to compile hotfix Pull Request.'
+      };
+      for (const [k, v] of Object.entries(defaultDesc)) {
+        document.getElementById(`desc${k}`).innerText = v;
+      }
+
+      document.getElementById('swarmStatus').innerText = 'STANDBY';
+      document.getElementById('swarmStatus').className = 'step-badge';
+      document.getElementById('inspectorPanel').style.display = 'none';
+    }
+
+    async function viewArtifact(type) {
+      const modal = document.getElementById('reportModal');
+      const content = document.getElementById('modalContent');
+      const title = document.getElementById('modalTitle');
+
+      modal.style.display = 'flex';
+      content.innerText = 'Loading artifact...';
+      content.scrollTop = 0;
+      if (modal.querySelector('.modal-card')) modal.querySelector('.modal-card').scrollTop = 0;
+
+      if (type === 'spec') {
+        const res = await fetch('/v1/demo/triage-report');
+        const data = await res.json();
+        title.innerText = data.title;
+        content.innerText = data.summary;
+        content.scrollTop = 0;
+        if (modal.querySelector('.modal-card')) modal.querySelector('.modal-card').scrollTop = 0;
+      } else if (type === 'schema') {
+        title.innerText = 'Live SQLite Schema Inspector: Table `transactions`';
+        const res = await fetch('/v1/demo/schema');
+        const data = await res.json();
+        
+        let schemaStr = "";
+        if (data.migration_applied) {
+          schemaStr += "========================================================================================\n";
+          schemaStr += "✅ LIVE DATABASE SCHEMA INSPECTOR: Table `transactions`\n";
+          schemaStr += `Table: transactions (${data.total_columns} Columns - v2 Polymorphic Ready)\n`;
+          schemaStr += "========================================================================================\n\n";
+          data.columns.forEach(col => {
+            const isNew = (col.name === 'fee_amount' || col.name === 'idempotency_token');
+            const colName = col.name.padEnd(20);
+            const colType = col.type.padEnd(10);
+            schemaStr += `• ${colName} | Type: ${colType} ${isNew ? '  <== [ADDED BY SUBAGENT-DB ZERO-DOWNTIME MIGRATION]' : ''}\n`;
+          });
+          schemaStr += "\n----------------------------------------------------------------------------------------\n";
+          schemaStr += "Applied Non-Blocking DDL (database/migrations/migration_002_add_v2_columns.py):\n";
+          schemaStr += "  ALTER TABLE transactions ADD COLUMN fee_amount REAL DEFAULT 0.0;\n";
+          schemaStr += "  ALTER TABLE transactions ADD COLUMN idempotency_token TEXT DEFAULT NULL;\n";
+          schemaStr += "Zero table locks; zero active transaction interruption; 100% WAL concurrency.\n";
+        } else {
+          schemaStr += "========================================================================================\n";
+          schemaStr += "LIVE DATABASE SCHEMA INSPECTOR: Table `transactions`\n";
+          schemaStr += `Table: transactions (${data.total_columns} Columns - Production Baseline)\n`;
+          schemaStr += "========================================================================================\n\n";
+          schemaStr += "Current Baseline Schema:\n";
+          data.columns.forEach(col => {
+            const colName = col.name.padEnd(20);
+            const colType = col.type.padEnd(10);
+            schemaStr += `• ${colName} | Type: ${colType}\n`;
+          });
+          schemaStr += "\n----------------------------------------------------------------------------------------\n";
+          schemaStr += "Storage Engine: SQLite 3 (WAL Journal Mode Active, Busy Timeout: 20s)\n";
+          schemaStr += "Active Table Locks: 0\n";
+          schemaStr += "Status: HEALTHY. Monitoring for unhandled schema alterations.\n";
+        }
+        content.innerText = schemaStr;
+      } else if (type === 'adapter') {
+        const res = await fetch('/v1/demo/adapter-code');
+        const data = await res.json();
+        const telemRes = await fetch('/v1/telemetry');
+        const telem = await telemRes.json();
+        
+        const isHealed = (telem.stats.settled_count > 0 && telem.dlq.dlq_count === 0);
+        if (!isHealed) {
+          title.innerText = 'Subagent-Adapter: Base Production Router (Unpatched)';
+          content.innerText = 
+`========================================================================================
+SUBAGENT-ADAPTER STATUS: STANDBY / BASE PRODUCTION ROUTER (UNPATCHED)
+========================================================================================
+Router File: api/main.py -> ingest_payment_webhook()
+Current Behavior: Direct field extraction expecting legacy v1 schema:
+  customer_id = payload["customer_id"]
+  amount = payload["amount"]
+
+No polymorphic contract adapter is active in memory.
+If an upstream vendor sends breaking contract modifications (e.g. 'account_ref' or nested objects),
+the router crashes with unhandled KeyError: 'customer_id' and routes to DLQ.
+
+Click 'Run OpsHeal Autonomous Healer' to synthesize and deploy the polymorphic adapter.`;
+        } else {
+          title.innerText = 'Subagent-Adapter: Polymorphic Contract Engine (services/contract_adapter.py)';
+          content.innerText = 
+`========================================================================================
+✅ SUBAGENT-ADAPTER STATUS: HOTFIX DEPLOYED (ACTIVE IN MEMORY)
+File: services/contract_adapter.py
+========================================================================================
+
+` + data.content;
+        }
+      }
+    }
+
+    async function viewReport(type) {
+      const modal = document.getElementById('reportModal');
+      const content = document.getElementById('modalContent');
+      const title = document.getElementById('modalTitle');
+      
+      if (type === 'pr') {
+        title.innerText = 'CTO Production Pull Request (reports/PULL_REQUEST_HOTFIX.md)';
+      } else if (type === 'canary') {
+        title.innerText = 'Canary Safety Gate Verification (reports/CANARY_VERIFICATION.md)';
+      } else if (type === 'postmortem') {
+        title.innerText = 'Incident Post-Mortem & Financial ROI (reports/POST_MORTEM.md)';
+      } else {
+        title.innerText = 'Executive Audit Report';
+      }
+      content.innerText = 'Loading report...';
+      modal.style.display = 'flex';
+      content.innerText = 'Loading report...';
+      content.scrollTop = 0;
+      if (modal.querySelector('.modal-card')) modal.querySelector('.modal-card').scrollTop = 0;
+
+      try {
+        const res = await fetch(`/v1/reports/${type}`);
+        const data = await res.json();
+        content.innerText = data.content;
+        content.scrollTop = 0;
+        if (modal.querySelector('.modal-card')) modal.querySelector('.modal-card').scrollTop = 0;
+      } catch (err) {
+        content.innerText = 'Failed to load report: ' + err;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('reportModal').style.display = 'none';
+    }
+
+    const CHAOS_PRESETS = {
+      stripe_cents: {
+        name: "Stripe Minor Units (cents -> dollars)",
+        payload: {
+          "event_type": "charge.captured",
+          "transaction_id": "TX-STRIPE-8821",
+          "client_id": "CUST-STRIPE-ENTERPRISE",
+          "amount_cents": 580000,
+          "fee_amount": 17.40,
+          "currency": "usd",
+          "status": "succeeded",
+          "idempotency_key": "IDEMP-STRIPE-8821-SECURE"
+        }
+      },
+      dirty_currency: {
+        name: "Stringified Currency Coercion ($12,450.75)",
+        payload: {
+          "event_id": "EVT-DIRTY-771",
+          "transaction_id": "TX-DIRTY-771",
+          "payer_id": "CUST-GLOBAL-HOLDINGS",
+          "amount": "$12,450.75",
+          "fee": "$37.35",
+          "currency": "USD",
+          "state": "Authorised",
+          "idempotency_token": "IDEMP-DIRTY-771"
+        }
+      },
+      nested_adyen: {
+        name: "Deeply Nested Gateway Hierarchy",
+        payload: {
+          "event_id": "EVT-ADYEN-449",
+          "transaction_id": "TX-ADYEN-449",
+          "account_ref": "CUST-ADYEN-CORP",
+          "payment_detail": {
+            "settlement_amount": 9500.00,
+            "fee_amount": 28.50,
+            "iso_currency": "USD"
+          },
+          "idempotency_token": "IDEMP-ADYEN-449"
+        }
+      },
+      field_rename: {
+        name: "Field Renames (client_id / completed)",
+        payload: {
+          "transaction_id": "TX-RENAME-302",
+          "client_id": "CUST-RENAME-302",
+          "amount": 3200.00,
+          "currency": "EUR",
+          "status": "completed",
+          "idempotency_token": "IDEMP-RENAME-302"
+        }
+      },
+      legacy_v1: {
+        name: "Legacy v1 Backward Compatibility",
+        payload: {
+          "transaction_id": "TX-LEGACY-001",
+          "customer_id": "CUST-LEGACY-BASELINE",
+          "amount": 450.00,
+          "currency": "USD"
+        }
+      }
+    };
+
+    function openChaosModal() {
+      document.getElementById('chaosModal').style.display = 'flex';
+      if (!document.getElementById('chaosPayloadJson').value) {
+        loadChaosPreset('stripe_cents');
+      }
+    }
+
+    function closeChaosModal() {
+      document.getElementById('chaosModal').style.display = 'none';
+    }
+
+    function loadChaosPreset(key) {
+      const preset = CHAOS_PRESETS[key];
+      if (preset) {
+        document.getElementById('chaosPayloadJson').value = JSON.stringify(preset.payload, null, 2);
+        document.getElementById('chaosPresetBadge').innerText = preset.name;
+      }
+    }
+
+    async function dispatchChaosWebhook() {
+      const badge = document.getElementById('chaosStatusBadge');
+      const resPre = document.getElementById('chaosResponseJson');
+      const transContainer = document.getElementById('chaosTransformationsContainer');
+      const transList = document.getElementById('chaosTransformationsList');
+      const rawJson = document.getElementById('chaosPayloadJson').value;
+
+      let payloadObj;
+      try {
+        payloadObj = JSON.parse(rawJson);
+      } catch (e) {
+        alert('Invalid JSON syntax: ' + e.message);
+        return;
+      }
+
+      badge.innerText = 'DISPATCHING...';
+      badge.className = 'status-code-badge';
+      transContainer.style.display = 'none';
+      transList.innerHTML = '';
+
+      try {
+        const res = await fetch('/v1/demo/send-custom-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadObj)
+        });
+        const data = await res.json();
+
+        if (data.status_code === 200) {
+          badge.className = 'status-code-badge status-code-200';
+          badge.innerText = `HTTP ${data.status_code} ${data.status_text}`;
+          resPre.innerText = JSON.stringify(data.response_body, null, 2);
+
+          const applied = data.response_body.transformations_applied || [];
+          if (applied.length > 0) {
+            transList.innerHTML = applied.map(t => `<li>✓ ${t}</li>`).join('');
+            transContainer.style.display = 'block';
+          }
+        } else {
+          badge.className = 'status-code-badge status-code-500';
+          badge.innerText = `HTTP ${data.status_code} ${data.status_text}`;
+          resPre.innerText = JSON.stringify(data.response_body, null, 2) + "\n\n" + (data.error_trace || '');
+        }
+
+        // Also sync to the main dashboard Live Webhook Execution Console
+        const mainPanel = document.getElementById('inspectorPanel');
+        const mainBadge = document.getElementById('inspectorBadge');
+        const mainReqPre = document.getElementById('inspectorRequestJson');
+        const mainResPre = document.getElementById('inspectorResponseJson');
+        const mainReqTitle = document.getElementById('inspectorRequestTitle');
+
+        if (mainPanel) mainPanel.style.display = 'block';
+        if (mainReqTitle) mainReqTitle.innerText = `Live Injected Chaos Webhook (${document.getElementById('chaosPresetBadge').innerText})`;
+        if (mainReqPre) mainReqPre.innerText = JSON.stringify(payloadObj, null, 2);
+
+        if (data.status_code === 200) {
+          if (mainBadge) {
+            mainBadge.className = 'status-code-badge status-code-200';
+            mainBadge.innerText = `HTTP ${data.status_code} ${data.status_text}`;
+          }
+          if (mainResPre) mainResPre.innerText = JSON.stringify(data.response_body, null, 2);
+        } else {
+          if (mainBadge) {
+            mainBadge.className = 'status-code-badge status-code-500';
+            mainBadge.innerText = `HTTP ${data.status_code} ${data.status_text}`;
+          }
+          if (mainResPre) mainResPre.innerText = JSON.stringify(data.response_body, null, 2) + "\n\n" + (data.error_trace || '');
+        }
+      } catch (err) {
+        badge.className = 'status-code-badge status-code-500';
+        badge.innerText = 'FETCH ERROR';
+        resPre.innerText = 'Error: ' + err.message;
+      }
+    }
+
+    fetchTelemetry();
+    setInterval(fetchTelemetry, 2000);
+  </script>
+</body>
+</html>
