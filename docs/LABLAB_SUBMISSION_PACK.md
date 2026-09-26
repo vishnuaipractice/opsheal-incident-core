@@ -5,9 +5,13 @@ Copy and paste the sections below directly into the corresponding fields on your
 ---
 
 ### 1. Project Title
+*(Max 50 characters — exactly 48 characters)*
 ```text
-OpsHeal — Autonomous Incident Triage & Zero-Downtime Hotfix Agent Swarm
+OpsHeal: Autonomous Self-Healing SRE Agent Swarm
 ```
+
+*(Alternative 50 chars)*: `OpsHeal: Autonomous Incident Triage & Hotfix Swarm`
+
 
 ---
 
