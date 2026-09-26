@@ -63,9 +63,10 @@ Furthermore, IBM Bob assisted in generating our comprehensive 21-test pytest val
 
 ---
 
-### 5. Technology & Category Tags
-- **Categories**: `DevOps`, `FinTech`, `Infrastructure`, `Autonomous Agents`, `AI Tools`
-- **Technologies**: `IBM Bob 2.0`, `Python`, `FastAPI`, `SQLite WAL`, `Pydantic`, `pytest`, `Docker`
+### 5. Technology & Category Tags (Predefined Portal Tags)
+- **Categories**: `Coding`, `Cloud Application`, `Productivity` *(or `Developer Tools` / `Fintech` if available in search)*
+- **Technologies Used**: `Ibm`, `Generative Agents`, `Gemini 3 Flash` *(or `Python` / `watsonx` if available in search)*
+
 
 ---
 
