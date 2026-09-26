@@ -68,3 +68,9 @@ Furthermore, IBM Bob assisted in generating our comprehensive 21-test pytest val
 ### 6. Video Demonstration URL
 - **YouTube Link**: https://youtu.be/i8CV6-nm-bw
 - **Duration**: 2:49 (Guaranteed strictly under the 3:00 limit)
+
+---
+
+### 7. GitHub Repository URL
+- **Repository URL**: https://github.com/vishnuaipractice/opsheal-incident-core
+
